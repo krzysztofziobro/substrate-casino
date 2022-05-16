@@ -9,6 +9,8 @@ mod command;
 mod command_helper;
 mod rpc;
 
+mod wrappers;
+
 fn main() -> sc_cli::Result<()> {
 	command::run()
 }
