@@ -41,6 +41,7 @@ sp-keyring = { version = "6.0.0", git = "https://github.com/paritytech/substrate
 frame-system = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.20" }
 pallet-transaction-payment = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.20" }
 sc-network-gossip = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.20"}
+prometheus-endpoint = { package = "substrate-prometheus-endpoint", version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.20"}
 async-trait = {default-features = false, version = "0.1.50"}
 log = {version = "0.4.8"}
 

@@ -20,12 +20,18 @@ use sp_api::BlockT;
 use sp_runtime::Justification;
 use log::info;
 use sc_network_gossip::GossipEngine;
+use sp_timestamp::InherentDataProvider as TimestampProvider;
+use sp_runtime::traits::Header;
+use sp_runtime::traits::UniqueSaturatedInto;
+
 
 const N : u32 = 10;
 const K : u32 = 4;
 
 pub struct CasinoBlockImport<Backend, Block: BlockT, Client, SC> {
     grandpa_block_import : GrandpaBlockImport<Backend, Block, Client, SC>,
+
+    block_timestamps : Vec<u128>,
 }
 
 impl<Backend, Block: BlockT, Client, SC: Clone> Clone
@@ -33,7 +39,8 @@ impl<Backend, Block: BlockT, Client, SC: Clone> Clone
 {
 	fn clone(&self) -> Self {
 		CasinoBlockImport {
-		    grandpa_block_import : self.grandpa_block_import.clone()
+		    grandpa_block_import : self.grandpa_block_import.clone(),
+            block_timestamps : self.block_timestamps.clone(),
 		}
 	}
 }
@@ -86,7 +93,21 @@ where
 		block: BlockImportParams<Block, Self::Transaction>,
 		new_cache: HashMap<well_known_cache_keys::Id, Vec<u8>>,
 	) -> Result<ImportResult, Self::Error> {
-            info!("Casino Block Import");
+            let block_num : u32 = (*block.header.number()).unique_saturated_into();
+            let timestamp : u128 = TimestampProvider::from_system_time().timestamp().as_duration().as_millis();
+
+            self.block_timestamps.push(timestamp);
+
+            if block_num == N {
+                let mut avg_block_diff : u128 = 0;
+                for i in 0..self.block_timestamps.len()-1 {
+                    avg_block_diff += self.block_timestamps[i+1] - self.block_timestamps[i];
+                }
+                avg_block_diff /= (N - 1) as u128;
+                let estimate = self.block_timestamps[self.block_timestamps.len() - 1] + K as u128 * avg_block_diff;
+
+                info!("Casino Block Import estimate: {}", estimate);
+            }
 
 	        self.grandpa_block_import.import_block(block, new_cache).await
 	}
@@ -117,12 +138,29 @@ where
 		telemetry,
 	)?;
 
-    Ok((CasinoBlockImport{grandpa_block_import}, link_half))
+    Ok((CasinoBlockImport{grandpa_block_import, block_timestamps : Vec::<_>::new()}, link_half))
 }
 
+use std::borrow::Cow;
+use sc_network_gossip::Validator;
+use prometheus_endpoint::Registry;
+use sc_network_gossip::Network;
 
 struct CasinoGossipEngine<B : BlockT> {
     gossip_engine : GossipEngine<B>,
+}
+
+impl <B : BlockT> CasinoGossipEngine<B> {
+    pub fn new<N: Network<B> + Send + Clone + 'static>(
+        network: N,
+        protocol: impl Into<Cow<'static, str>>,
+        validator: Arc<dyn Validator<B>>,
+        metrics_registry: Option<&Registry>
+    ) -> Self {
+        CasinoGossipEngine {
+            gossip_engine : GossipEngine::new(network, protocol, validator, metrics_registry)
+        }
+    }
 }
 
 
