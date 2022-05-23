@@ -1,5 +1,6 @@
 
 use sc_finality_grandpa::GrandpaBlockImport;
+use sp_api::Encode;
 use sp_blockchain::Error as ClientError;
 use sp_blockchain::well_known_cache_keys;
 use sc_consensus::block_import::{JustificationImport, BlockImport};
@@ -23,15 +24,15 @@ use sc_network_gossip::GossipEngine;
 use sp_timestamp::InherentDataProvider as TimestampProvider;
 use sp_runtime::traits::Header;
 use sp_runtime::traits::UniqueSaturatedInto;
-
+use std::sync::mpsc::{SyncSender, Receiver};
 
 const N : u32 = 10;
 const K : u32 = 4;
 
 pub struct CasinoBlockImport<Backend, Block: BlockT, Client, SC> {
     grandpa_block_import : GrandpaBlockImport<Backend, Block, Client, SC>,
-
     block_timestamps : Vec<u128>,
+    sender : SyncSender<CasinoMessage<Block>>,
 }
 
 impl<Backend, Block: BlockT, Client, SC: Clone> Clone
@@ -41,6 +42,7 @@ impl<Backend, Block: BlockT, Client, SC: Clone> Clone
 		CasinoBlockImport {
 		    grandpa_block_import : self.grandpa_block_import.clone(),
             block_timestamps : self.block_timestamps.clone(),
+            sender : self.sender.clone(),
 		}
 	}
 }
@@ -107,6 +109,7 @@ where
                 let estimate = self.block_timestamps[self.block_timestamps.len() - 1] + K as u128 * avg_block_diff;
 
                 info!("Casino Block Import estimate: {}", estimate);
+                self.sender.send(CasinoMessage(estimate, block.header.hash())).unwrap();
             }
 
 	        self.grandpa_block_import.import_block(block, new_cache).await
@@ -125,6 +128,7 @@ pub fn casino_block_import<BE, Block: BlockT, Client, SC>(
 	genesis_authorities_provider: &dyn GenesisAuthoritySetProvider<Block>,
 	select_chain: SC,
 	telemetry: Option<TelemetryHandle>,
+    sender : SyncSender<CasinoMessage<Block>>,
 ) -> Result<(CasinoBlockImport<BE, Block, Client, SC>, LinkHalf<Block, Client, SC>), ClientError>
 where
 	SC: SelectChain<Block>,
@@ -138,16 +142,34 @@ where
 		telemetry,
 	)?;
 
-    Ok((CasinoBlockImport{grandpa_block_import, block_timestamps : Vec::<_>::new()}, link_half))
+    Ok((CasinoBlockImport{grandpa_block_import, block_timestamps : Vec::<_>::new(), sender}, link_half))
 }
 
 use std::borrow::Cow;
-use sc_network_gossip::Validator;
+use sc_network_gossip::{Validator, ValidatorContext, Network};
 use prometheus_endpoint::Registry;
-use sc_network_gossip::Network;
+use sc_network::PeerId;
+use futures_lite::future::FutureExt;
 
-struct CasinoGossipEngine<B : BlockT> {
+pub struct CasinoValidator;
+
+impl<Block : BlockT> Validator<Block> for CasinoValidator {
+    fn validate (
+        &self,
+        _context: &mut dyn ValidatorContext<Block>,
+        who: &PeerId,
+        data: &[u8],
+        ) -> sc_network_gossip::ValidationResult<Block::Hash> {
+            info!("Validating gossip message: ");
+            info!("Author: {}", who);
+            info!("Data: {:?}", data);
+            sc_network_gossip::ValidationResult::Discard
+    }
+}
+
+pub struct CasinoGossipEngine<B : BlockT> {
     gossip_engine : GossipEngine<B>,
+    receiver : Receiver<CasinoMessage<B>>,
 }
 
 impl <B : BlockT> CasinoGossipEngine<B> {
@@ -155,12 +177,52 @@ impl <B : BlockT> CasinoGossipEngine<B> {
         network: N,
         protocol: impl Into<Cow<'static, str>>,
         validator: Arc<dyn Validator<B>>,
-        metrics_registry: Option<&Registry>
-    ) -> Self {
+        metrics_registry: Option<&Registry>,
+        receiver : Receiver<CasinoMessage<B>>,
+        ) -> Self {
         CasinoGossipEngine {
-            gossip_engine : GossipEngine::new(network, protocol, validator, metrics_registry)
+            gossip_engine : GossipEngine::new(network, protocol, validator, metrics_registry),
+            receiver,
         }
     }
 }
+
+use std::task::Poll;
+use std::task::Context;
+use std::pin::Pin;
+use std::future::Future;
+
+pub struct CasinoMessage<B: BlockT>(u128, B::Hash);
+
+impl<B: BlockT> Future for CasinoGossipEngine<B> {
+	type Output = ();
+
+	fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        loop {
+            match self.receiver.try_recv() {
+                Ok(CasinoMessage(estimate, block_hash)) => {
+                    info!("Casino Gossip Engine recieved estimate: {}", estimate);
+
+                    self.gossip_engine.gossip_message(block_hash, estimate.encode(), false);
+
+                    info!("Message gossiped");
+                },
+                _ => ()
+            }
+
+            match self.gossip_engine.poll(cx) {
+                Poll::Pending => {
+                    break;
+                },
+                _ => {
+                    info!("Network closed");
+                    return Poll::Ready(());
+                }
+            }
+        }
+        Poll::Pending
+    }
+}
+
 
 

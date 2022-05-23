@@ -10,7 +10,12 @@ use sc_service::{error::Error as ServiceError, Configuration, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
 use std::{sync::Arc, time::Duration};
-use crate::wrappers::{casino_block_import, CasinoBlockImport};
+use crate::wrappers::{casino_block_import, CasinoBlockImport, CasinoGossipEngine, CasinoValidator, CasinoMessage};
+use std::sync::mpsc::sync_channel as channel;
+use std::sync::mpsc::Receiver;
+use sp_runtime::traits::BlakeTwo256;
+use sp_runtime::OpaqueExtrinsic;
+use sc_network::config::NonDefaultSetConfig;
 
 // Our native executor instance.
 pub struct ExecutorDispatch;
@@ -55,6 +60,7 @@ pub fn new_partial(
 			>,
 			sc_finality_grandpa::LinkHalf<Block, FullClient, FullSelectChain>,
 			Option<Telemetry>,
+            Receiver<CasinoMessage<sp_runtime::generic::Block<sp_runtime::generic::Header<u32, BlakeTwo256>, OpaqueExtrinsic>>>,
 		),
 	>,
 	ServiceError,
@@ -104,11 +110,14 @@ pub fn new_partial(
 		client.clone(),
 	);
 
+    let (casino_tx, casino_rx) = channel::<CasinoMessage<_>>(42);
+
 	let (block_import, grandpa_link) = casino_block_import(
 		client.clone(),
 		&(client.clone() as Arc<_>),
 		select_chain.clone(),
 		telemetry.as_ref().map(|x| x.handle()),
+        casino_tx,
 	)?;
 
 	let slot_duration = sc_consensus_aura::slot_duration(&*client)?;
@@ -146,7 +155,7 @@ pub fn new_partial(
 		keystore_container,
 		select_chain,
 		transaction_pool,
-		other: (block_import, grandpa_link, telemetry),
+		other: (block_import, grandpa_link, telemetry, casino_rx),
 	})
 }
 
@@ -167,7 +176,7 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 		mut keystore_container,
 		select_chain,
 		transaction_pool,
-		other: (block_import, grandpa_link, mut telemetry),
+		other: (block_import, grandpa_link, mut telemetry, casino_rx),
 	} = new_partial(&config)?;
 
 	if let Some(url) = &config.keystore_remote {
@@ -189,6 +198,11 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 		.network
 		.extra_sets
 		.push(sc_finality_grandpa::grandpa_peers_set_config(grandpa_protocol_name.clone()));
+    config
+        .network
+        .extra_sets
+        .push(NonDefaultSetConfig::new(std::borrow::Cow::Borrowed("/casino"), 1024));
+
 	let warp_sync = Arc::new(sc_finality_grandpa::warp_proof::NetworkProvider::new(
 		backend.clone(),
 		grandpa_link.shared_authority_set().clone(),
@@ -205,6 +219,8 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 			block_announce_validator_builder: None,
 			warp_sync: Some(warp_sync),
 		})?;
+
+
 
 	if config.offchain_worker.enabled {
 		sc_service::build_offchain_workers(
@@ -313,6 +329,7 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 		local_role: role,
 		telemetry: telemetry.as_ref().map(|x| x.handle()),
 		protocol_name: grandpa_protocol_name,
+
 	};
 
 	if enable_grandpa {
@@ -325,7 +342,7 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 		let grandpa_config = sc_finality_grandpa::GrandpaParams {
 			config: grandpa_config,
 			link: grandpa_link,
-			network,
+			network : network.clone(),
 			voting_rule: sc_finality_grandpa::VotingRulesBuilder::default().build(),
 			prometheus_registry,
 			shared_voter_state: SharedVoterState::empty(),
@@ -340,6 +357,13 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 			sc_finality_grandpa::run_grandpa_voter(grandpa_config)?,
 		);
 	}
+
+    let casino_engine = CasinoGossipEngine::new(network, "/casino", Arc::new(CasinoValidator), None, casino_rx);
+    task_manager.spawn_essential_handle().spawn_blocking(
+        "casino-task",
+        None,
+        casino_engine
+    );
 
 	network_starter.start_network();
 	Ok(task_manager)
