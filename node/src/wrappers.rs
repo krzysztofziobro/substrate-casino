@@ -1,30 +1,20 @@
-
-use sc_finality_grandpa::GrandpaBlockImport;
-use sp_api::Encode;
+use sc_finality_grandpa::{GrandpaBlockImport, ClientForGrandpa, GenesisAuthoritySetProvider, GrandpaApi, LinkHalf};
+use sp_api::{Encode, NumberFor, TransactionFor, BlockT};
 use sp_blockchain::Error as ClientError;
 use sp_blockchain::well_known_cache_keys;
-use sc_consensus::block_import::{JustificationImport, BlockImport};
-use sc_consensus::block_import::{ImportResult, BlockImportParams, BlockCheckParams};
-use sp_api::NumberFor;
-use sc_client_api::Backend;
-use sc_finality_grandpa::ClientForGrandpa;
+use sc_consensus::block_import::{JustificationImport, BlockImport, ImportResult, BlockImportParams, BlockCheckParams};
 use sp_consensus::SelectChain;
 use sp_consensus::Error as ConsensusError;
-use sc_finality_grandpa::GrandpaApi;
-use sp_api::TransactionFor;
+use sc_client_api::Backend;
 use std::collections::HashMap;
 use std::sync::Arc;
-use sc_finality_grandpa::GenesisAuthoritySetProvider;
-use sc_finality_grandpa::LinkHalf;
+use std::sync::mpsc::{SyncSender, Receiver};
 use sc_telemetry::TelemetryHandle;
-use sp_api::BlockT;
-use sp_runtime::Justification;
 use log::info;
 use sc_network_gossip::GossipEngine;
 use sp_timestamp::InherentDataProvider as TimestampProvider;
-use sp_runtime::traits::Header;
-use sp_runtime::traits::UniqueSaturatedInto;
-use std::sync::mpsc::{SyncSender, Receiver};
+use sp_runtime::traits::{Header, UniqueSaturatedInto};
+use sp_runtime::Justification;
 
 const N : u32 = 10;
 const K : u32 = 4;
@@ -187,8 +177,7 @@ impl <B : BlockT> CasinoGossipEngine<B> {
     }
 }
 
-use std::task::Poll;
-use std::task::Context;
+use std::task::{Poll, Context};
 use std::pin::Pin;
 use std::future::Future;
 
