@@ -10,7 +10,7 @@ use sc_service::{error::Error as ServiceError, Configuration, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
 use std::{sync::Arc, time::Duration};
-use crate::wrappers::{casino_block_import, CasinoBlockImport, CasinoGossipEngine, CasinoValidator, CasinoMessage};
+use crate::wrappers::{casino_block_import, CasinoBlockImport, CasinoGossipEngine, CasinoValidator, CasinoMessage, MAX_CASINO_MESSAGE_LEN, CASINO_PROTOCOL_NAME};
 use std::sync::mpsc::sync_channel as channel;
 use std::sync::mpsc::Receiver;
 use sp_runtime::traits::BlakeTwo256;
@@ -110,7 +110,7 @@ pub fn new_partial(
 		client.clone(),
 	);
 
-    let (casino_tx, casino_rx) = channel::<CasinoMessage<_>>(42);
+    let (casino_tx, casino_rx) = channel::<CasinoMessage<_>>(MAX_CASINO_MESSAGE_LEN);
 
 	let (block_import, grandpa_link) = casino_block_import(
 		client.clone(),
@@ -201,7 +201,7 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
     config
         .network
         .extra_sets
-        .push(NonDefaultSetConfig::new(std::borrow::Cow::Borrowed("/casino"), 1024));
+        .push(NonDefaultSetConfig::new(std::borrow::Cow::Borrowed(CASINO_PROTOCOL_NAME), 1024));
 
 	let warp_sync = Arc::new(sc_finality_grandpa::warp_proof::NetworkProvider::new(
 		backend.clone(),
@@ -358,7 +358,7 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 		);
 	}
 
-    let casino_engine = CasinoGossipEngine::new(network, "/casino", Arc::new(CasinoValidator), None, casino_rx);
+    let casino_engine = CasinoGossipEngine::new(network, CASINO_PROTOCOL_NAME, Arc::new(CasinoValidator), None, casino_rx);
     task_manager.spawn_essential_handle().spawn_blocking(
         "casino-task",
         None,

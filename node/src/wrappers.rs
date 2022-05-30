@@ -19,6 +19,9 @@ use sp_runtime::Justification;
 const N : u32 = 10;
 const K : u32 = 4;
 
+pub const MAX_CASINO_MESSAGE_LEN : usize = 42;
+pub const CASINO_PROTOCOL_NAME : &str = "/casino";
+
 pub struct CasinoBlockImport<Backend, Block: BlockT, Client, SC> {
     grandpa_block_import : GrandpaBlockImport<Backend, Block, Client, SC>,
     block_timestamps : Vec<u128>,
@@ -99,7 +102,7 @@ where
                 let estimate = self.block_timestamps[self.block_timestamps.len() - 1] + K as u128 * avg_block_diff;
 
                 info!("Casino Block Import estimate: {}", estimate);
-                self.sender.send(CasinoMessage(estimate, block.header.hash())).unwrap();
+                self.sender.send(CasinoMessage(estimate, block.header.hash())).expect("Broken casino channel.");
              }
 
             if block_num == N + K {
@@ -155,14 +158,20 @@ impl<Block : BlockT> Validator<Block> for CasinoValidator {
         data: &[u8],
         ) -> sc_network_gossip::ValidationResult<Block::Hash> {
 
-            let mut mut_data = data.clone();
-            let message : CasinoMessage<Block> = CasinoMessage::decode(&mut mut_data).unwrap();
-
             info!("Validating gossip message: ");
             info!("Author: {}", who);
-            info!("Timestamp: {}", message.0);
 
-            sc_network_gossip::ValidationResult::ProcessAndKeep(message.1)
+            let mut mut_data = data.clone();
+            match CasinoMessage::<Block>::decode(&mut mut_data) {
+                Ok(CasinoMessage(timestamp, hash)) => {
+                    info!("Timestamp: {}", timestamp);
+                    sc_network_gossip::ValidationResult::ProcessAndKeep(hash)
+                },
+                _ => {
+                    info!("Invalid message");
+                    sc_network_gossip::ValidationResult::Discard
+                }
+            }
     }
 }
 
