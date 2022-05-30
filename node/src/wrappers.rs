@@ -16,15 +16,15 @@ use sp_timestamp::InherentDataProvider as TimestampProvider;
 use sp_runtime::traits::{Header, UniqueSaturatedInto};
 use sp_runtime::Justification;
 
-const N : u32 = 10;
-const K : u32 = 4;
+const N : u32 = 12;
+const K : u32 = 6;
 
 pub const MAX_CASINO_MESSAGE_LEN : usize = 42;
 pub const CASINO_PROTOCOL_NAME : &str = "/casino";
 
 pub struct CasinoBlockImport<Backend, Block: BlockT, Client, SC> {
     grandpa_block_import : GrandpaBlockImport<Backend, Block, Client, SC>,
-    block_timestamps : Vec<u128>,
+    block_timestamps : Vec<(u32, u128)>,
     sender : SyncSender<CasinoMessage<Block>>,
 }
 
@@ -91,15 +91,15 @@ where
             let block_num : u32 = (*block.header.number()).unique_saturated_into();
             let timestamp : u128 = TimestampProvider::from_system_time().timestamp().as_duration().as_millis();
 
-            self.block_timestamps.push(timestamp);
+            self.block_timestamps.push((block_num, timestamp));
 
             if block_num == N {
                 let mut avg_block_diff : u128 = 0;
                 for i in 0..self.block_timestamps.len()-1 {
-                    avg_block_diff += self.block_timestamps[i+1] - self.block_timestamps[i];
+                    avg_block_diff += (self.block_timestamps[i+1].1 - self.block_timestamps[i].1)/(self.block_timestamps[i+1].0 - self.block_timestamps[i].0) as u128;
                  }
-                avg_block_diff /= (N - 1) as u128;
-                let estimate = self.block_timestamps[self.block_timestamps.len() - 1] + K as u128 * avg_block_diff;
+                avg_block_diff /= (self.block_timestamps.len() - 1) as u128;
+                let estimate = self.block_timestamps[self.block_timestamps.len() - 1].1 + K as u128 * avg_block_diff;
 
                 info!("Casino Block Import estimate: {}", estimate);
                 self.sender.send(CasinoMessage(estimate, block.header.hash())).expect("Broken casino channel.");
