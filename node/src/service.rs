@@ -10,7 +10,7 @@ use sc_service::{error::Error as ServiceError, Configuration, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
 use std::{sync::Arc, time::Duration};
-use crate::wrappers::{casino_block_import, CasinoBlockImport, CasinoGossipEngine, CasinoValidator, CasinoMessage, MAX_CASINO_MESSAGE_LEN, CASINO_PROTOCOL_NAME};
+use crate::casino::{casino_block_import, CasinoBlockImport, CasinoGossipEngine, CasinoValidator, CasinoMessage, MAX_CASINO_MESSAGE_LEN, CASINO_PROTOCOL_NAME};
 use std::sync::mpsc::sync_channel as channel;
 use std::sync::mpsc::Receiver;
 use sp_runtime::traits::BlakeTwo256;

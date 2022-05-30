@@ -9,7 +9,7 @@ mod command;
 mod command_helper;
 mod rpc;
 
-mod wrappers;
+mod casino;
 
 fn main() -> sc_cli::Result<()> {
 	command::run()

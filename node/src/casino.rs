@@ -159,7 +159,7 @@ impl<Block : BlockT> Validator<Block> for CasinoValidator {
         ) -> sc_network_gossip::ValidationResult<Block::Hash> {
 
             info!("Validating gossip message: ");
-            info!("Author: {}", who);
+            info!("Peer: {}", who);
 
             let mut mut_data = data.clone();
             match CasinoMessage::<Block>::decode(&mut mut_data) {
