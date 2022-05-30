@@ -43,6 +43,7 @@ pallet-transaction-payment = { version = "4.0.0-dev", default-features = false, 
 sc-network-gossip = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.20"}
 sc-network = { version = "0.10.0-dev",  git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.20"}
 prometheus-endpoint = { package = "substrate-prometheus-endpoint", version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.20"}
+codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false, features = ["derive"] }
 async-trait = {default-features = false, version = "0.1.50"}
 log = {version = "0.4.8"}
 futures-lite = {version = "1.12.0"}
