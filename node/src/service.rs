@@ -110,6 +110,7 @@ pub fn new_partial(
 		client.clone(),
 	);
 
+    // A channel for communication between CasinoBlockImport and CasinoGossipEngine
     let (casino_tx, casino_rx) = channel::<CasinoMessage<_>>(MAX_CASINO_MESSAGE_LEN);
 
 	let (block_import, grandpa_link) = casino_block_import(
@@ -198,6 +199,8 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 		.network
 		.extra_sets
 		.push(sc_finality_grandpa::grandpa_peers_set_config(grandpa_protocol_name.clone()));
+
+    // Add casino protocol to the list of known protocols
     config
         .network
         .extra_sets
@@ -358,7 +361,10 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 		);
 	}
 
+    // Create new CasinoGossipEngine with custom Validator and channel endpoint
     let casino_engine = CasinoGossipEngine::new(network, CASINO_PROTOCOL_NAME, Arc::new(CasinoValidator), None, casino_rx);
+
+    // Add a new task which allows CasinoGossipEngine to operate
     task_manager.spawn_essential_handle().spawn_blocking(
         "casino-task",
         None,

@@ -22,6 +22,7 @@ const K : u32 = 6;
 pub const MAX_CASINO_MESSAGE_LEN : usize = 42;
 pub const CASINO_PROTOCOL_NAME : &str = "/casino";
 
+// Struct that wraps GrandpaBlockImport and allows sending block information to CasinoGossipEngine
 pub struct CasinoBlockImport<Backend, Block: BlockT, Client, SC> {
     grandpa_block_import : GrandpaBlockImport<Backend, Block, Client, SC>,
     block_timestamps : Vec<(u32, u128)>,
@@ -83,6 +84,11 @@ where
 	type Error = ConsensusError;
 	type Transaction = TransactionFor<Client, Block>;
 
+    // Extracts information that should be sent to CasinoGossipEngine"
+    // - block hash
+    // - timestamp
+    // - calculates timestamp estimate for (N + K)th block
+    // Sends timestamp estimate and hash through the channel to CasinoGossipEngine
  	async fn import_block(
 		&mut self,
 		block: BlockImportParams<Block, Self::Transaction>,
@@ -94,6 +100,8 @@ where
             self.block_timestamps.push((block_num, timestamp));
 
             if block_num == N {
+
+                // Timestamp estimate calculation
                 let mut avg_block_diff : u128 = 0;
                 for i in 0..self.block_timestamps.len()-1 {
                     avg_block_diff += (self.block_timestamps[i+1].1 - self.block_timestamps[i].1)/(self.block_timestamps[i+1].0 - self.block_timestamps[i].0) as u128;
@@ -102,6 +110,8 @@ where
                 let estimate = self.block_timestamps[self.block_timestamps.len() - 1].1 + K as u128 * avg_block_diff;
 
                 info!("Casino Block Import estimate: {}", estimate);
+
+                // Sending data through channel
                 self.sender.send(CasinoMessage(estimate, block.header.hash())).expect("Broken casino channel.");
              }
 
@@ -120,6 +130,8 @@ where
 	}
 }
 
+
+// Wraps grandpa's block_import to return CasinoBlockImport
 pub fn casino_block_import<BE, Block: BlockT, Client, SC>(
 	client: Arc<Client>,
 	genesis_authorities_provider: &dyn GenesisAuthoritySetProvider<Block>,
@@ -151,6 +163,8 @@ use futures_lite::future::FutureExt;
 pub struct CasinoValidator;
 
 impl<Block : BlockT> Validator<Block> for CasinoValidator {
+
+    // Validates casino message format
     fn validate (
         &self,
         _context: &mut dyn ValidatorContext<Block>,
@@ -175,6 +189,7 @@ impl<Block : BlockT> Validator<Block> for CasinoValidator {
     }
 }
 
+// Wrapper for GossipEngine which gets timestamp estimate from CasinoBlockImport and gossips it
 pub struct CasinoGossipEngine<B : BlockT> {
     gossip_engine : GossipEngine<B>,
     receiver : Receiver<CasinoMessage<B>>,
@@ -208,6 +223,8 @@ impl<B: BlockT> Future for CasinoGossipEngine<B> {
 
 	fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         loop {
+
+            // Try to extract timestamp info from CasinoBlockImport and gossip it
             match self.receiver.try_recv() {
                 Ok(CasinoMessage(estimate, block_hash)) => {
                     info!("Casino Gossip Engine recieved estimate: {}", estimate);
@@ -219,6 +236,7 @@ impl<B: BlockT> Future for CasinoGossipEngine<B> {
                 _ => ()
             }
 
+            // Polls wrapped gossip engine to allow performing needed interactions with a network
             match self.gossip_engine.poll(cx) {
                 Poll::Pending => {
                     break;
