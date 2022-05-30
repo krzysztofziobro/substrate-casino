@@ -670,22 +670,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "casino"
-version = "4.0.0-dev"
-dependencies = [
- "async-trait",
- "frame-benchmarking",
- "frame-support",
- "frame-system",
- "parity-scale-codec",
- "scale-info",
- "sp-api",
- "sp-core",
- "sp-io",
- "sp-runtime",
-]
-
-[[package]]
 name = "cc"
 version = "1.0.73"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3767,7 +3751,6 @@ name = "node-template"
 version = "4.0.0-dev"
 dependencies = [
  "async-trait",
- "casino",
  "clap",
  "frame-benchmarking",
  "frame-benchmarking-cli",
@@ -3816,7 +3799,6 @@ dependencies = [
 name = "node-template-runtime"
 version = "4.0.0-dev"
 dependencies = [
- "casino",
  "frame-benchmarking",
  "frame-executive",
  "frame-support",

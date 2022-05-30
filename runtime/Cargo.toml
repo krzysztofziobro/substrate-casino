@@ -48,9 +48,6 @@ frame-benchmarking = { version = "4.0.0-dev", default-features = false, git = "h
 frame-system-benchmarking = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.20", optional = true }
 hex-literal = { version = "0.3.4", optional = true }
 
-# Local Dependencies
-casino = { version = "4.0.0-dev", default-features = false, path = "../pallets/casino" }
-
 [build-dependencies]
 substrate-wasm-builder = { version = "5.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.20" }
 
@@ -68,7 +65,6 @@ std = [
 	"pallet-grandpa/std",
 	"pallet-randomness-collective-flip/std",
 	"pallet-sudo/std",
-	"casino/std",
 	"pallet-timestamp/std",
 	"pallet-transaction-payment-rpc-runtime-api/std",
 	"pallet-transaction-payment/std",
@@ -91,7 +87,6 @@ runtime-benchmarks = [
 	"frame-system/runtime-benchmarks",
 	"hex-literal",
 	"pallet-balances/runtime-benchmarks",
-	"casino/runtime-benchmarks",
 	"pallet-timestamp/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
 ]
